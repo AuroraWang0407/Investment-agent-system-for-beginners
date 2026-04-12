@@ -1,4 +1,5 @@
 import os
+from turtle import st
 from dotenv import load_dotenv
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
@@ -10,9 +11,15 @@ from agent_tools import tools
 # Load environment variables
 load_dotenv()
 
+# llm = ChatOpenAI(
+#     model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+#     api_key=os.getenv("DEEPSEEK_API_KEY"),
+#     base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+#     temperature=float(os.getenv("APP_TEMPERATURE", 0.1)))
+
 llm = ChatOpenAI(
     model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    api_key=st.secrets["DEEPSEEK_API_KEY"],
     base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
     temperature=float(os.getenv("APP_TEMPERATURE", 0.1)))
 
@@ -45,7 +52,7 @@ system_prompt = """
         - PRICE / BUY QUESTIONS: Always call get_current_quote first
         - FULL ANALYSIS: Must include get_recent_news (data + news summary required)
         - POSITION QUESTIONS: "How much to buy?" → call calculate_position_size
-        - KEEP IT CONCISE: 4–6 sentences max, casual & clear tone
+        - KEEP IT CONCISE: 4-6 sentences max, casual & clear tone
         - ALWAYS RESPOND IN THE LANGUAGE THE USER USES
         """
 
