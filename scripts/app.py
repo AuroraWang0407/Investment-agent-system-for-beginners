@@ -1,8 +1,9 @@
 import streamlit as st
-import requests
 import yfinance as yf
 from datetime import datetime, timedelta
 import pytz
+from agent_runner import run_investment_agent
+
 
 # Set page config
 st.set_page_config(page_title="智能股票投资助手 / AI Stock Assistant", page_icon="📈", layout="wide")
@@ -115,7 +116,7 @@ ui_text = {
         "welcome": "欢迎！请告诉我您的**投资金额**、**意向股票**，以及**最大可接受的亏损比例**。",
         "chat_placeholder": "例如：我想投10000块买AAPL，最多亏15%",
         "spinner": "AI正在分析最新新闻和市场数据，请稍候...",
-        "error_conn": "⚠️ API连接失败。请确保后端的 FastAPI 服务正在运行！",
+        "error_conn": "⚠️ 发生错误。请检查您的网络连接和 API 密钥配置。",
         "error_unknown": "发生未知错误: ",
         "sidebar_title": "⚙️ 控制面板",
         "clear_chat": "🗑️ 清空对话",
@@ -134,7 +135,7 @@ ui_text = {
         "welcome": "Welcome! Please tell me your **investment amount**, **target stock**, and **maximum acceptable loss percentage**.",
         "chat_placeholder": "e.g., I want to invest $10000 in AAPL, max loss 15%",
         "spinner": "AI is analyzing the latest news and market data...",
-        "error_conn": "⚠️ API connection failed. Please ensure the backend FastAPI service is running!",
+        "error_conn": "⚠️ An error occurred. Please check your network connection and API key configuration.",
         "error_unknown": "An unknown error occurred: ",
         "sidebar_title": "⚙️ Control Panel",
         "clear_chat": "🗑️ Clear Chat",
@@ -290,19 +291,7 @@ if prompt := st.chat_input(t["chat_placeholder"]):
 
     with st.spinner(t["spinner"]):
         try:
-            response = requests.post(
-                "http://127.0.0.1:8000/api/invest", 
-                json={"user_input": prompt},
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                bot_reply = response.json().get("reply", "Agent failed to return a message.")
-            else:
-                bot_reply = f"Error {response.status_code}: {t['error_conn']}"
-                
-        except requests.exceptions.ConnectionError:
-            bot_reply = t["error_conn"]
+            bot_reply = run_investment_agent(prompt)
         except Exception as e:
             bot_reply = f"{t['error_unknown']} {str(e)}"
 

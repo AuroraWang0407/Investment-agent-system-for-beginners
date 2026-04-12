@@ -1,5 +1,5 @@
 import os
-from turtle import st
+import streamlit as st
 from dotenv import load_dotenv
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
@@ -17,13 +17,20 @@ load_dotenv()
 #     base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
 #     temperature=float(os.getenv("APP_TEMPERATURE", 0.1)))
 
-llm = ChatOpenAI(
+try:
+    api_key = st.secrets["DEEPSEEK_API_KEY"]
+except:
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+
+llm = ChatOpenAI( 
     model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
-    api_key=st.secrets["DEEPSEEK_API_KEY"],
-    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+    api_key=api_key,
+    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),  
     temperature=float(os.getenv("APP_TEMPERATURE", 0.1)))
 
-#  Describe public opinion and mood (positive/neutral/negative) --> 查找网页工具
+#  Describe public opinion and mood (positive/neutral/negative) --> 查找网页工具 
+
+
 
 system_prompt = """
         You are a PROFESSIONAL, FRIENDLY, and RESPONSIBLE investment advisor for BEGINNERS.
