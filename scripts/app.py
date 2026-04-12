@@ -268,7 +268,7 @@ with st.sidebar:
         
     st.divider()
     
-    with st.expander("ℹ️ 关于系统 / About"):
+    with st.expander("ℹ️ About system"):
         st.caption(t["disclaimer"])
 
 # -----------------------------------------
