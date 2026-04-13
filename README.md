@@ -1,10 +1,13 @@
 # 📈 智能股票投资助手 | AI Stock Investment Assistant
 
-一个基于 LangChain 和 DeepSeek LLM 的课程项目，为初学者提供股票投资建议和风险分析。
+一个基于 LangChain 和 DeepSeek LLM 的**Investment Agent**课程项目，为初学者提供股票投资建议和风险分析。
 
 A course project powered by LangChain and DeepSeek LLM, providing stock investment advice and risk analysis for beginners.
 
 ---
+## 🚀 快速开始 | Quick Start
+https://investment-agent-system-for-beginners-kzkegpfxofztszfauxxdno.streamlit.app/
+
 
 ## 🎯 项目功能 | Features
 
@@ -35,14 +38,11 @@ agent_4070/
 │   └── requirements.txt        # Python 依赖
 ├── backup/                     # 旧版本备份代码
 ├── .env.example               # 环境变量示例（含说明）
-├── .env                       # 实际环境变量（请勿提交！）
 ├── .gitignore                 # Git 忽略文件
 └── README.md                  # 本文件
 ```
 
 ---
-
-## 🚀 快速开始 | Quick Start
 
 ### 前置条件 | Prerequisites
 
@@ -207,7 +207,7 @@ Agent: [比较两只股票] → 波动率、新闻情绪、风险概况
 
 ## 🧪 测试与评估 | Testing
 
-该项目包含 10 个预定义的测试用例（见 `data.py`）：
+该项目包含边界测试用例（见 `data.py`）：
 
 ```python
 TEST_CASES = [
