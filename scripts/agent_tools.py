@@ -1,15 +1,11 @@
 """
-
 工具清单，可供 llm 自行选择
-
+改用官方 API：Finnhub (行情) + Alpha Vantage (新闻/情绪/公司信息)
 """
 
-
-import yfinance as yf
+import os
 import requests
 from langchain_classic.agents import tool
-from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
-
 
 # 显式内存：存储当前会话的参数
 _memory_store = {
@@ -18,116 +14,224 @@ _memory_store = {
     "loss_pct": 8.0  # 默认值
 }
 
+# ===== API KEY 管理 =====
+def get_api_key(key_name: str) -> str:
+    """
+    获取 API key，优先从 Streamlit secrets（Streamlit 环境），备用 .env（本地环境）
+    """
+    # 首先尝试从 Streamlit secrets 获取（仅在 Streamlit 运行时有效）
+    try:
+        import streamlit as st
+        # 检查是否在 Streamlit 环境中
+        if hasattr(st, 'secrets'):
+            key = st.secrets.get(key_name)
+            if key and key != "":
+                return key
+    except:
+        # 不在 Streamlit 环境，继续使用 .env
+        pass
+    
+    # 备用：从 .env 文件或环境变量获取（本地环境）
+    key = os.getenv(key_name, "").strip()
+    if key:
+        return key
+    
+    # 都没有则返回空（会在调用时被检查）
+    return ""
 
+
+# ===== 1. Finnhub API - 实时股票报价 =====
 @tool
 def get_current_quote(ticker: str) -> dict:
     """
-    Fetch the latest real-time quote for a stock ticker.
+    Fetch the latest real-time quote for a stock ticker using Finnhub API.
     Returns current price, change, volume, day's range, etc.
     Useful for beginners who want to know the current price quickly.
     """
     try:
-        stock = yf.Ticker(ticker.upper())
-        info = stock.info
-
+        api_key = get_api_key("FINNHUB_API_KEY")
+        if not api_key:
+            return {
+                "ticker": ticker.upper(),
+                "error": "Finnhub API key not found. Please configure FINNHUB_API_KEY in .env or Streamlit secrets."
+            }
+        
+        url = f"https://finnhub.io/api/v1/quote?symbol={ticker.upper()}&token={api_key}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "c" not in data:
+            return {
+                "ticker": ticker.upper(),
+                "error": "Invalid ticker symbol or no data available"
+            }
+        
         quote = {
             "ticker": ticker.upper(),
-            "company_name": info.get("shortName", "Unknown"),
-            "current_price": info.get("currentPrice", info.get("regularMarketPrice", None)),
-            "previous_close": info.get("regularMarketPreviousClose", None),
-            "change": info.get("regularMarketChange", None),
-            "change_percent": info.get("regularMarketChangePercent", None),
-            "day_high": info.get("regularMarketDayHigh", None),
-            "day_low": info.get("regularMarketDayLow", None),
-            "volume": info.get("regularMarketVolume", None),
-            "currency": info.get("currency", "USD"),
-            "market_state": info.get("marketState", "Unknown"),
+            "current_price": data.get("c"),  # current price
+            "previous_close": data.get("pc"),  # previous close
+            "change": round(data.get("c", 0) - data.get("pc", 0), 2),
+            "change_percent": round(((data.get("c", 0) - data.get("pc", 0)) / data.get("pc", 1) * 100), 2) if data.get("pc") else None,
+            "day_high": data.get("h"),  # day high
+            "day_low": data.get("l"),  # day low
+            "open": data.get("o"),  # open
+            "volume": "N/A",  # Finnhub free plan 不提供 volume
+            "currency": "USD",
+            "market_state": "Unknown",
         }
-
-        # Format percentage nicely
-        if quote["change_percent"] is not None:
-            quote["change_percent"] = round(quote["change_percent"] * 100, 2)
-
+        
         return quote
-
+        
+    except requests.exceptions.Timeout:
+        return {"ticker": ticker.upper(), "error": "Request timeout - Finnhub API unavailable"}
+    except requests.exceptions.RequestException as e:
+        return {"ticker": ticker.upper(), "error": f"Failed to fetch from Finnhub: {str(e)}"}
     except Exception as e:
-        return {
-            "ticker": ticker.upper(),
-            "error": f"Failed to fetch quote: {str(e)}"
-        }
+        return {"ticker": ticker.upper(), "error": f"Failed to fetch quote: {str(e)}"}
 
+
+# ===== 2. Alpha Vantage - 公司信息 + 新闻情绪 =====
 @tool
 def get_company_profile(ticker: str) -> dict:
     """
-    Get basic company information: name, sector, industry, business summary,
-    market cap, website, etc. Helpful for beginners who want to understand
-    what the company actually does.
+    Get company information and market sentiment using Alpha Vantage NEWS_SENTIMENT API.
+    Returns company name, sentiment analysis, top news themes.
     """
     try:
-        stock = yf.Ticker(ticker.upper())
-        info = stock.info
-
+        api_key = get_api_key("ALPHAVANTAGE_API_KEY")
+        if not api_key:
+            return {
+                "ticker": ticker.upper(),
+                "error": "Alpha Vantage API key not found. Please configure ALPHAVANTAGE_API_KEY in .env or Streamlit secrets."
+            }
+        
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker.upper()}&apikey={api_key}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "items" not in data or not data.get("items"):
+            return {
+                "ticker": ticker.upper(),
+                "error": "No data available or API rate limit reached. Try again later."
+            }
+        
+        # 提取公司信息和情绪数据
+        items = data.get("items", [])
+        ticker_sentiment = data.get("ticker_sentiment", [])
+        
+        # 找主要的 ticker 情绪
+        main_sentiment = None
+        if ticker_sentiment:
+            for sentiment in ticker_sentiment:
+                if sentiment.get("ticker") == ticker.upper():
+                    main_sentiment = sentiment
+                    break
+        
         profile = {
             "ticker": ticker.upper(),
-            "company_name": info.get("shortName", "Unknown"),
-            "full_name": info.get("longName", None),
-            "sector": info.get("sector", "Unknown"),
-            "industry": info.get("industry", "Unknown"),
-            "market_cap": info.get("marketCap", None),
-            "business_summary": info.get("longBusinessSummary", "No description available"),
-            "website": info.get("website", None),
-            "country": info.get("country", None),
-            "city": info.get("city", None),
-            "employees": info.get("fullTimeEmployees", None),
-            "trailing_pe": info.get("trailingPE", None),
-            "forward_pe": info.get("forwardPE", None),
-            "dividend_yield": info.get("dividendYield", None),
+            "company_name": ticker.upper(),  # Alpha Vantage 不提供公司名，用 ticker 代替
+            "sentiment": main_sentiment.get("ticker_sentiment_score", "N/A") if main_sentiment else "N/A",
+            "sentiment_label": main_sentiment.get("ticker_sentiment_label", "N/A") if main_sentiment else "N/A",
+            "relevant_news_count": len(items),
+            "top_news_title": items[0].get("title", "N/A") if items else "N/A",
+            "top_news_url": items[0].get("url", "N/A") if items else "N/A",
+            "business_summary": f"Latest news sentiment: {main_sentiment.get('ticker_sentiment_label', 'Unknown')} " 
+                               if main_sentiment else "No sentiment data available",
         }
-
-        # Shorten long descriptions for readability
-        if profile["business_summary"] and len(profile["business_summary"]) > 350:
-            profile["business_summary"] = profile["business_summary"][:350] + "... (truncated)"
-
+        
         return profile
-
+        
+    except requests.exceptions.Timeout:
+        return {"ticker": ticker.upper(), "error": "Request timeout - Alpha Vantage API unavailable"}
+    except requests.exceptions.RequestException as e:
+        return {"ticker": ticker.upper(), "error": f"Failed to fetch from Alpha Vantage: {str(e)}"}
     except Exception as e:
-        return {
-            "ticker": ticker.upper(),
-            "error": str(e)
-        }
+        return {"ticker": ticker.upper(), "error": f"Failed to fetch company profile: {str(e)}"}
 
 
-# ==============================================
-# Brand New Financial News Function (Alpha Vantage)
-# ==============================================
-
-
+# ===== 3. Alpha Vantage - 新闻和情绪分析 =====
 @tool
 def get_recent_news(ticker: str, limit: int = 5) -> dict:
     """
-    Retrieves the latest stock news using the official LangChain YahooFinanceNewsTool.
-    This is more reliable than Alpha Vantage, providing news directly relevant to the company itself.
+    Retrieves the latest stock news and sentiment analysis using Alpha Vantage NEWS_SENTIMENT API.
+    Returns news articles, sentiment scores, and overall market mood.
     """
     try:
-        tool = YahooFinanceNewsTool()
-        raw_news = tool.run(ticker.upper())
+        api_key = get_api_key("ALPHAVANTAGE_API_KEY")
+        if not api_key:
+            return {
+                "ticker": ticker.upper(),
+                "error": "Alpha Vantage API key not found. Please configure ALPHAVANTAGE_API_KEY in .env or Streamlit secrets."
+            }
         
-        # You can perform simple parsing here to convert raw_news into a structured list 
-        # (adjust based on actual output).
-        # raw_news is typically a long string; you can split it by line or extract using simple rules.
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker.upper()}&apikey={api_key}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "items" not in data or not data.get("items"):
+            return {
+                "ticker": ticker.upper(),
+                "error": "No news available or API rate limit reached. Try again later.",
+                "news_source": "Alpha Vantage"
+            }
+        
+        # 解析新闻
+        items = data.get("items", [])[:limit]
+        news_list = []
+        for item in items:
+            news_list.append({
+                "title": item.get("title", "N/A"),
+                "url": item.get("url", "N/A"),
+                "time_published": item.get("time_published", "N/A"),
+                "sentiment": item.get("overall_sentiment_label", "N/A"),
+                "sentiment_score": item.get("overall_sentiment_score", "N/A"),
+            })
+        
+        # 计算整体情绪
+        ticker_sentiment = data.get("ticker_sentiment", [])
+        overall_sentiment = "NEUTRAL"
+        sentiment_score = 0.0
+        if ticker_sentiment:
+            for sentiment in ticker_sentiment:
+                if sentiment.get("ticker") == ticker.upper():
+                    overall_sentiment = sentiment.get("ticker_sentiment_label", "NEUTRAL")
+                    sentiment_score = float(sentiment.get("ticker_sentiment_score", 0))
+                    break
+        
         return {
             "ticker": ticker.upper(),
-            "news_source": "Yahoo Finance",
-            "raw_news": raw_news[:5000],   # Limit length to stay within LLM context windows
-            "note": "Above are the summaries of recent relevant news. Please summarize the market sentiment."
+            "news_source": "Alpha Vantage",
+            "overall_sentiment": overall_sentiment,
+            "overall_sentiment_score": sentiment_score,
+            "news_articles": news_list,
+            "raw_news": "\n".join([f"- {n['title']} ({n['sentiment']})" for n in news_list])[:3000],
+            "note": f"Overall market sentiment for {ticker.upper()}: {overall_sentiment}. Please summarize based on the articles above."
+        }
+        
+    except requests.exceptions.Timeout:
+        return {
+            "ticker": ticker.upper(),
+            "error": "Request timeout - Alpha Vantage API unavailable",
+            "news_source": "Alpha Vantage"
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "ticker": ticker.upper(),
+            "error": f"Failed to fetch from Alpha Vantage: {str(e)}",
+            "news_source": "Alpha Vantage"
         }
     except Exception as e:
-        return {"ticker": ticker.upper(), "error": str(e)}
+        return {
+            "ticker": ticker.upper(),
+            "error": f"Failed to fetch recent news: {str(e)}",
+            "news_source": "Alpha Vantage"
+        }
 
 
-# print(get_recent_news("TSLA"))
-
-
+# ===== 其他工具（保持不变）=====
 @tool
 def calculate_position_size(
     budget_usd: float,
@@ -214,10 +318,7 @@ tools = [
     get_company_profile, 
     get_recent_news, 
     calculate_position_size,
+    analyze_risk_reward,
     get_investment_params,      
     update_investment_params   
 ]
-
-
-
-
