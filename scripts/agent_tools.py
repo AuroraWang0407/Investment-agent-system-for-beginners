@@ -151,61 +151,83 @@ def get_company_profile(ticker: str) -> dict:
         return {"ticker": ticker.upper(), "error": f"Failed to fetch company profile: {str(e)}"}
 
 
-# ===== 3. Alpha Vantage - 新闻和情绪分析 =====
+# ===== 3. NewsAPI - 新闻和情绪分析 =====
 @tool
 def get_recent_news(ticker: str, limit: int = 5) -> dict:
     """
-    Retrieves the latest stock news and sentiment analysis using Alpha Vantage NEWS_SENTIMENT API.
-    Returns news articles, sentiment scores, and overall market mood.
+    Retrieves the latest stock news using NewsAPI.org.
+    Returns news articles with basic sentiment analysis.
     """
     try:
-        api_key = get_api_key("ALPHAVANTAGE_API_KEY")
+        api_key = get_api_key("NEWSAPI_API_KEY")
         if not api_key:
             return {
                 "ticker": ticker.upper(),
-                "error": "Alpha Vantage API key not found. Please configure ALPHAVANTAGE_API_KEY in .env or Streamlit secrets."
+                "error": "NewsAPI key not found. Please configure NEWSAPI_API_KEY in .env or Streamlit secrets."
             }
         
-        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker.upper()}&apikey={api_key}"
+        # 使用公司名称进行搜索（更准确）
+        company_names = {
+            "NVDA": "NVIDIA",
+            "TSLA": "Tesla",
+            "AAPL": "Apple",
+            "MSFT": "Microsoft",
+            "GOOGL": "Google",
+            "AMZN": "Amazon",
+            "META": "Meta",
+            "NFLX": "Netflix"
+        }
+        
+        search_term = company_names.get(ticker.upper(), ticker.upper())
+        url = f"https://newsapi.org/v2/everything?q={search_term}&sortBy=publishedAt&language=en&apiKey={api_key}"
+        
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        if "items" not in data or not data.get("items"):
+        if data.get("status") != "ok" or not data.get("articles"):
             return {
                 "ticker": ticker.upper(),
                 "error": "No news available or API rate limit reached. Try again later.",
-                "news_source": "Alpha Vantage"
+                "news_source": "NewsAPI"
             }
         
         # 解析新闻
-        items = data.get("items", [])[:limit]
+        articles = data.get("articles", [])[:limit]
         news_list = []
-        for item in items:
+        for article in articles:
+            # 简单的情绪分析（基于标题关键词）
+            title = article.get("title", "").lower()
+            sentiment = "NEUTRAL"
+            if any(word in title for word in ["rise", "up", "gain", "bull", "positive", "growth", "profit"]):
+                sentiment = "POSITIVE"
+            elif any(word in title for word in ["fall", "down", "loss", "bear", "negative", "decline", "drop"]):
+                sentiment = "NEGATIVE"
+            
             news_list.append({
-                "title": item.get("title", "N/A"),
-                "url": item.get("url", "N/A"),
-                "time_published": item.get("time_published", "N/A"),
-                "sentiment": item.get("overall_sentiment_label", "N/A"),
-                "sentiment_score": item.get("overall_sentiment_score", "N/A"),
+                "title": article.get("title", "N/A"),
+                "url": article.get("url", "N/A"),
+                "publishedAt": article.get("publishedAt", "N/A"),
+                "source": article.get("source", {}).get("name", "N/A"),
+                "sentiment": sentiment,
             })
         
         # 计算整体情绪
-        ticker_sentiment = data.get("ticker_sentiment", [])
-        overall_sentiment = "NEUTRAL"
-        sentiment_score = 0.0
-        if ticker_sentiment:
-            for sentiment in ticker_sentiment:
-                if sentiment.get("ticker") == ticker.upper():
-                    overall_sentiment = sentiment.get("ticker_sentiment_label", "NEUTRAL")
-                    sentiment_score = float(sentiment.get("ticker_sentiment_score", 0))
-                    break
+        positive_count = sum(1 for n in news_list if n["sentiment"] == "POSITIVE")
+        negative_count = sum(1 for n in news_list if n["sentiment"] == "NEGATIVE")
+        
+        if positive_count > negative_count:
+            overall_sentiment = "POSITIVE"
+        elif negative_count > positive_count:
+            overall_sentiment = "NEGATIVE"
+        else:
+            overall_sentiment = "NEUTRAL"
         
         return {
             "ticker": ticker.upper(),
-            "news_source": "Alpha Vantage",
+            "news_source": "NewsAPI",
             "overall_sentiment": overall_sentiment,
-            "overall_sentiment_score": sentiment_score,
+            "total_articles": len(news_list),
             "news_articles": news_list,
             "raw_news": "\n".join([f"- {n['title']} ({n['sentiment']})" for n in news_list])[:3000],
             "note": f"Overall market sentiment for {ticker.upper()}: {overall_sentiment}. Please summarize based on the articles above."
@@ -214,20 +236,20 @@ def get_recent_news(ticker: str, limit: int = 5) -> dict:
     except requests.exceptions.Timeout:
         return {
             "ticker": ticker.upper(),
-            "error": "Request timeout - Alpha Vantage API unavailable",
-            "news_source": "Alpha Vantage"
+            "error": "Request timeout - NewsAPI unavailable",
+            "news_source": "NewsAPI"
         }
     except requests.exceptions.RequestException as e:
         return {
             "ticker": ticker.upper(),
-            "error": f"Failed to fetch from Alpha Vantage: {str(e)}",
-            "news_source": "Alpha Vantage"
+            "error": f"Failed to fetch from NewsAPI: {str(e)}",
+            "news_source": "NewsAPI"
         }
     except Exception as e:
         return {
             "ticker": ticker.upper(),
             "error": f"Failed to fetch recent news: {str(e)}",
-            "news_source": "Alpha Vantage"
+            "news_source": "NewsAPI"
         }
 
 
