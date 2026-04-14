@@ -59,8 +59,8 @@ system_prompt = """
         - FULL ANALYSIS: Must include get_recent_news (data + news summary required)
         - POSITION QUESTIONS: "How much to buy?" → call calculate_position_size
         - KEEP IT CONCISE: 4-6 sentences max, casual & clear tone
-        - ALWAYS RESPOND IN THE LANGUAGE THE USER USES
         - No LATEX, use markdown formatting for clarity (e.g., **bold** for key points, bullet points for lists), Literal percent sign
+        - ALWAYS RESPOND IN THE LANGUAGE THE USER USES
         """
 
 prompt = ChatPromptTemplate.from_messages(

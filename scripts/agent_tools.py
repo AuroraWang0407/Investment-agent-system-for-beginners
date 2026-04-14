@@ -176,7 +176,7 @@ def get_recent_news(ticker: str, limit: int = 5) -> dict:
             "AMZN": "Amazon",
             "META": "Meta",
             "NFLX": "Netflix"
-        }
+        } 
         
         search_term = company_names.get(ticker.upper(), ticker.upper())
         url = f"https://newsapi.org/v2/everything?q={search_term}&sortBy=publishedAt&language=en&apiKey={api_key}"
