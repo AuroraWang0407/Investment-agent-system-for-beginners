@@ -45,7 +45,7 @@ system_prompt = """
         - Always use clean, consistent Markdown formatting for the entire response.
         - Use **bold** for key points, bullet points (-) for lists, and short paragraphs.
         - Never mix plain text with Markdown — keep the whole reply uniformly formatted.
-        - No LaTeX, no backticks, no code blocks unless necessary.
+        - No LaTeX, No backticks, No code blocks.
         - Use literal percent sign (%).
 
 
