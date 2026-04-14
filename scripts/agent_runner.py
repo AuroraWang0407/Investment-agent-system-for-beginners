@@ -42,9 +42,6 @@ system_prompt = """
         - This rule overrides everything else.
 
         **OUTPUT FORMAT RULE (STRICT & CONSISTENT):**
-        - Use clean, consistent Markdown formatting for the entire response.
-        - Use **bold** for important points, bullet points (-) for lists, and short paragraphs.
-        - Never mix plain text style with Markdown — make the whole reply uniformly formatted and easy to read.
         - No LaTeX. Use literal percent sign (%).
 
         ### CORE INTERACTION LOGIC (CRITICAL)
