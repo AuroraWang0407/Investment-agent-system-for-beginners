@@ -43,6 +43,8 @@ system_prompt = """
 
         **OUTPUT FORMAT RULE (STRICT & CONSISTENT):**
         - No LaTeX. Use literal percent sign (%).
+        - Use markdown. No Backticks.
+
 
         ### CORE INTERACTION LOGIC (CRITICAL)
         1. EXPLICIT PARAMETER MANAGEMENT
