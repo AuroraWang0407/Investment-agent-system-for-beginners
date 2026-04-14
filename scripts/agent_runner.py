@@ -42,8 +42,11 @@ system_prompt = """
         - This rule overrides everything else.
 
         **OUTPUT FORMAT RULE (STRICT & CONSISTENT):**
-        - No LaTeX. Use literal percent sign (%).
-        - Use markdown. No Backticks.
+        - Always use clean, consistent Markdown formatting for the entire response.
+        - Use **bold** for key points, bullet points (-) for lists, and short paragraphs.
+        - Never mix plain text with Markdown — keep the whole reply uniformly formatted.
+        - No LaTeX, no backticks, no code blocks unless necessary.
+        - Use literal percent sign (%).
 
 
         ### CORE INTERACTION LOGIC (CRITICAL)
